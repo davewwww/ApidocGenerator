@@ -25,17 +25,30 @@ class ReqresSwaggerTreebuilder extends SwaggerTreebuilder implements ReqresTreeb
 
         $pathVars = [];
         foreach ($requests as $reqres) {
+            $tags = [];
             if (null !== $route = $reqres->getRoute()) {
                 $routePath = $route->getPath();
 
                 $compilat = RouteCompiler::compile($route);
                 $pathVars = $compilat->getPathVariables();
+
+                //tags
+                foreach ($compilat->getTokens() as $token) {
+                    if ('text' === $token[0]) {
+                        $paths = explode('/',substr($token[1], 1));
+                        $tags = array_merge($tags,$paths);
+                    }
+                }
             } else {
                 $routePath = $reqres->getPath();
             }
 
             $path = $this->nodeFinder->findOrCreatePath($routePath, $root);
             $method = $this->nodeFinder->findOrCreateMethod($reqres->getMethod(), $path);
+
+            if (!empty($tags)) {
+                $method->tags = array_values(array_unique(array_merge((array) $method->tags, $tags)));
+            }
 
             foreach ($pathVars as $pathVariable) {
                 $parameter = $this->nodeFinder->findOrCreateParameter($pathVariable, 'path', $method);
@@ -44,6 +57,8 @@ class ReqresSwaggerTreebuilder extends SwaggerTreebuilder implements ReqresTreeb
 
             $this->addContentToMethod($reqres->request, $reqres->response, $method);
         }
+
+        $this->optimizeTags();
 
         return $root;
     }
